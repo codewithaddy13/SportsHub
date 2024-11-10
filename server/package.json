@@ -1,0 +1,22 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "docx": "^9.0.2",
+    "express": "^4.21.0",
+    "express-oauth2-jwt-bearer": "^1.6.0",
+    "kafkajs": "^2.2.4",
+    "moment": "^2.30.1",
+    "mongoose": "^8.6.3",
+    "nodemailer": "^6.9.15"
+  }
+}
