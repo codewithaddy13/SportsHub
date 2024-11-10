@@ -1,4 +1,3 @@
-// mailer.js
 const nodemailer = require('nodemailer');
 
 const sendBookingEmail = async (userEmail, bookingDetails) => {
@@ -6,8 +5,7 @@ const sendBookingEmail = async (userEmail, bookingDetails) => {
     service: 'gmail', // Ensure you are using the correct service
     auth: {
       user: 'sportshubturfs@gmail.com', // Your email address
-      // pass: 'bhcooxfmvslelsif', // Your app password
-      pass: 'pgykyadwjkoxmoec',
+      pass: 'pgykyadwjkoxmoec',    // Your app password
     },
   });
 
