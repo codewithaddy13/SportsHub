@@ -253,20 +253,50 @@ app.post('/api/bookings', async (req, res) => {
     }
 });
 
+
+app.post('/send-booking-email', async (req, res) => {
+    const { userEmail, bookingDetails } = req.body;
+
+    if (!userEmail || !bookingDetails) {
+        return res.status(400).send('Missing email or booking details');
+    }
+
+    try {
+        // Send booking email
+        await sendBookingEmail(userEmail, bookingDetails);
+
+        // Send booking details to Kafka
+        await sendBookingToKafka(bookingDetails);
+
+        res.status(200).send('Email sent and booking details published to Kafka successfully');
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('Error processing booking');
+    }
+});
+
+
+// Logout endpoint
+app.post('/api/logout', async (req, res) => {
+    try {
+      // Send a request to the FastAPI server to clear the user email
+      const response = await axios.post('http://localhost:8000/api/send-email', {
+        email: null, // Set user_email to None
+      });
+  
+      res.status(200).json({
+        message: 'User email cleared successfully in FastAPI',
+        fastApiResponse: response.data,
+      });
+    } catch (error) {
+      console.error('Error clearing user email:', error.message);
+      res.status(500).json({ message: 'Failed to clear user email' });
+    }
+});
+
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
