@@ -29,7 +29,6 @@ Steps to build:- <br>
 -> paste the ngrok url generated in thee Dialogflow chatbot, under the 'Fulfillments' section by enabling the webhook permission <br>
 -> down load the kafka zip file from https://kafka.apache.org/downloads <br>
 -> extract the kafka zip file and place the folder in the C-Drive <br>
--> navigae >bin >windows in the kafka folder <br>
 -> navigate to the >config dir of the kafka folder and modify the server file by setting 'log.dirs=C:\kafka-logs2' . Make sure u have the logs folder in >bin>windows directory. <br>
 -> open the terminal in >bin>windows and createa Kafka topic <br>
        command = kafka-topics.bat --create --topic turfBookings --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 <br>
