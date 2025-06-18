@@ -34,7 +34,9 @@ const Turf = ({ name, price, image, description, onClick, rank }) => {
 const Navbar = ({ onSearch, onAnalyticsClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState('Pune'); // Default city is Pune
+  const [isTurfOwner, setIsTurfOwner] = useState(false);
   const { loginWithRedirect, logout, user, isAuthenticated } = useAuth0();
+  const navigate = useNavigate();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -89,6 +91,37 @@ const Navbar = ({ onSearch, onAnalyticsClick }) => {
       console.error('Error during logout:', error);
     }
   };
+
+  
+
+  useEffect(() => {
+    const checkTurfOwner = async () => {
+      if (isAuthenticated && user?.email) {
+        try {
+          localStorage.setItem('loggedInUserEmail', user.email);
+          console.log('Logged-in user email:', localStorage.getItem('loggedInUserEmail'));
+          const response = await fetch('http://localhost:5000/api/check-turfowner', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: user.email }),
+          });
+          const data = await response.json();
+          setIsTurfOwner(data.isTurfOwner); // Assume the response returns { isTurfOwner: true/false }
+          console.log('API Response:', data);
+        } catch (error) {
+          console.error('Error checking turf owner status:', error);
+        }
+      }
+    };
+
+    checkTurfOwner();
+  }, [isAuthenticated, user]);
+  
+
+
+  
 
   return (
     <nav className="bg-green-500 text-white p-4 flex justify-between items-center fixed top-0 left-0 w-full z-10 shadow-md">
@@ -175,12 +208,28 @@ const Navbar = ({ onSearch, onAnalyticsClick }) => {
             >
               Logout
             </button>
-            <button
+            {/* <button
               onClick={onAnalyticsClick}
               className="bg-blue-500 text-white p-2 rounded ml-4"
             >
               Analytics
-            </button>
+            </button> */}
+            {isTurfOwner && (
+              <button
+                onClick={onAnalyticsClick}
+                className="bg-blue-700 text-white p-2 rounded ml-4"
+              >
+                Analytics
+              </button>
+            )}
+            {isTurfOwner && (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="bg-yellow-400 text-green-600 p-2 rounded ml-4"
+              >
+                Manage My Turf
+              </button>
+            )}
           </>
         )}
       </div>
