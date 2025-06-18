@@ -5,6 +5,7 @@ const path = require('path');
 const sendBookingEmail = require('./mailer');
 const { Kafka } = require('kafkajs');
 const moment = require('moment');
+const axios = require('axios');
 
 const app = express();
 
@@ -212,8 +213,30 @@ app.post('/api/bookings', async (req, res) => {
 
     const bookingStart = moment(`${date} ${time}`, 'YYYY-MM-DD HH:mm');
     const bookingEnd = moment(bookingStart).add(duration, 'hours');
+    const bookingDay = moment(date, 'YYYY-MM-DD').format('dddd'); // Get day of the week (e.g., Monday)
 
     try {
+        // Fetch turf timings for the selected turf
+        const turfTiming = await TurfTiming.findOne({ turfName });
+
+        if (!turfTiming) {
+            return res.status(404).json({ message: 'Turf timings not found for this turf.' });
+        }
+
+        // Check if the turf is available on the selected day
+        if (!turfTiming.days_available.includes(bookingDay)) {
+            return res.status(400).json({ message: `Turf is not available on ${bookingDay}.` });
+        }
+
+        // Check if the booking time falls within the allowed turf timing
+        const openingTime = moment(`${date} ${turfTiming.openingTime}`, 'YYYY-MM-DD HH:mm');
+        const closingTime = moment(`${date} ${turfTiming.closingTime}`, 'YYYY-MM-DD HH:mm');
+
+        if (bookingStart.isBefore(openingTime) || bookingEnd.isAfter(closingTime)) {
+            return res.status(400).json({ message: 'Booking time is outside the turf’s operating hours.' });
+        }
+
+
         const existingBookings = await Booking.find({
             turfId: turfId,
             date: date
@@ -293,6 +316,161 @@ app.post('/api/logout', async (req, res) => {
       res.status(500).json({ message: 'Failed to clear user email' });
     }
 });
+
+
+
+
+
+// Define the TurfOwner schema
+const turfOwnerSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true }, // Email must be unique and required
+    turf: { type: String, required: true }, // The turf name as a string
+});
+
+// Create and export the TurfOwner model
+const TurfOwner = mongoose.model('TurfOwner', turfOwnerSchema);
+
+
+
+// Check if the user is a turf owner
+app.post('/api/check-turfowner', async (req, res) => {
+    const { email } = req.body;
+  
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+  
+    try {
+      // Query MongoDB to find the email in the turfowners collection
+      const turfOwner = await TurfOwner.findOne({ email });
+  
+      if (turfOwner) {
+        return res.json({ isTurfOwner: true });
+      } else {
+        return res.json({ isTurfOwner: false });
+      }
+    } catch (error) {
+      console.error('Error checking turf owner:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+
+  app.get('/api/turfowners', async (req, res) => {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+  
+    try {
+      const turfOwner = await TurfOwner.findOne({ email });
+      
+      if (!turfOwner) {
+        return res.status(404).json({ error: 'Turf owner not found' });
+      }
+      
+      // Return the turf details if the turf owner is found
+      res.json({ turf: turfOwner.turf });
+  
+    } catch (error) {
+      console.error('Error fetching turf owner:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+
+
+  const turfTimingSchema = new mongoose.Schema({
+    turfName: { type: String, required: true },
+    openingTime: { type: String, required: true },
+    closingTime: { type: String, required: true },
+    days_available: { type: [String], required: true }, // Array of strings to store days
+});
+
+const TurfTiming = mongoose.model('TurfTiming', turfTimingSchema, 'turfTimings');
+
+
+
+
+
+
+app.post('/api/turfTimings', async (req, res) => {
+    const { turfName, openingTime, closingTime, days_available } = req.body; // Include the fields
+    const loggedInUserEmail = req.headers['x-user-email']; // Get logged-in user's email (make sure it's passed correctly)
+
+    if (!loggedInUserEmail) {
+        return res.status(400).json({ message: 'User email is required' });
+    }
+
+    try {
+        // Find if the logged-in user owns the turf
+        const turfOwner = await TurfOwner.findOne({ email: loggedInUserEmail });
+
+        if (!turfOwner) {
+            return res.status(404).json({ message: 'Turf owner not found' });
+        }
+
+        // Ensure the turfName matches the turf owned by the user
+        if (turfOwner.turf !== turfName) {
+            return res.status(403).json({ message: 'You are not authorized to update this turf\'s timings' });
+        }
+
+        // Check if a timing record already exists for the turfName
+        const existingTiming = await TurfTiming.findOne({ turfName });
+
+        if (existingTiming) {
+            // Update only the fields provided in the request body
+            if (openingTime) existingTiming.openingTime = openingTime;
+            if (closingTime) existingTiming.closingTime = closingTime;
+            if (days_available) existingTiming.days_available = days_available;
+            await existingTiming.save();
+            res.status(200).json({ message: 'Record updated successfully' });
+        } else {
+            // Ensure all fields are required for creating a new record
+            if (!openingTime || !closingTime || !days_available) {
+                return res.status(400).json({ message: 'All fields are required to create a new record' });
+            }
+
+            const newTiming = new TurfTiming({
+                turfName,
+                openingTime,
+                closingTime,
+                days_available,
+            });
+            await newTiming.save();
+            res.status(201).json({ message: 'Record saved successfully' });
+        }
+    } catch (error) {
+        console.error('Error saving record:', error);
+        res.status(500).json({ message: 'Error saving record' });
+    }
+});
+
+app.delete('/api/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const deletedBooking = await Booking.findByIdAndDelete(id);
+        if (!deletedBooking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+        res.status(200).json({ message: 'Booking canceled successfully' });
+    } catch (error) {
+        console.error('Error canceling booking:', error);
+        res.status(500).json({ message: 'Error canceling booking' });
+    }
+});
+
+app.get('/api/bookings', async (req, res) => {
+    const { name } = req.query;
+    try {
+        const bookings = await Booking.find({ turfName: name });
+        res.status(200).json(bookings);
+    } catch (error) {
+        console.error('Error fetching bookings:', error);
+        res.status(500).json({ message: 'Error fetching bookings' });
+    }
+});
+
 
 
 // Start server
